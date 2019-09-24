@@ -193,12 +193,92 @@ DagreLayout.prototype.run = function () {
 
   dagre.layout(g);
 
-  var gNodeIds = g.nodes();
-  for (var _i3 = 0; _i3 < gNodeIds.length; _i3++) {
-    var id = gNodeIds[_i3];
-    var n = g.node(id);
+  var gEdgeIds = g.edges();
+  for (var _i3 = 0; _i3 < gEdgeIds.length; _i3++) {
+    var id = gEdgeIds[_i3];
+    var e = g.edge(id);
 
-    cy.getElementById(id).scratch().dagre = n;
+    if (e && e.points) {
+      if (e.points.length > 3) {
+        (function () {
+          console.log('More than 3 points', e.points);
+          var distances = [];
+
+          var pStart = e.points[0];
+          var pEnd = e.points[e.points.length - 1];
+
+          var slope = (pEnd.y - pStart.y) / (pEnd.x - pStart.x);
+          var yIntercept = pStart.y - slope * pStart.x;
+          var slopeOrthogonal = -1 * (1 / slope);
+
+          var getDistance = function getDistance(pSegment) {
+            var result = {
+              'distance': pSegment.x - pStart.x,
+              'weight': Math.abs(pSegment.y - pStart.y) / Math.abs(pEnd.y - pStart.y)
+            };
+
+            if (pEnd.x - pStart.x === 0) {
+              return result;
+            }
+
+            var y2 = pEnd.y;
+            var y1 = pStart.y;
+            var x2 = pEnd.x;
+            var x1 = pStart.x;
+            var y3 = pSegment.y;
+            var x3 = pSegment.x;
+            var k = ((y2 - y1) * (x3 - x1) - (x2 - x1) * (y3 - y1)) / (Math.pow(y2 - y1, 2) + Math.pow(x2 - x1, 2));
+            var x4 = x3 - k * (y2 - y1);
+            var y4 = y3 + k * (x2 - x1);
+
+            result.distance = Math.sqrt(Math.pow(y4 - y3, 2) + Math.pow(x4 - x3, 2));
+
+            var d = (pSegment.x - pStart.x) * (pEnd.y - pStart.y) - (pSegment.y - pStart.y) * (pEnd.x - pStart.x);
+            if (d > 0) {
+              result.distance = -result.distance;
+            }
+
+            var yInterceptOrthogonal = pSegment.y - slopeOrthogonal * pSegment.x;
+            var distanceOrhthogonal = (slopeOrthogonal * pStart.x - pStart.y + yInterceptOrthogonal) / Math.sqrt(Math.pow(slopeOrthogonal, 2) + 1);
+
+            result.weight = distanceOrhthogonal / Math.sqrt(Math.pow(pEnd.x - pStart.x, 2) + Math.pow(pEnd.y - pStart.y, 2));
+
+            if (result.weight < 0) {
+              result.weight = -result.weight;
+            }
+
+            return result;
+          };
+
+          for (var j = 1; j < e.points.length - 1; j++) {
+            distances.push(getDistance(e.points[j]));
+          }
+
+          //distances[distances.length - 1].distance = 0;
+          //distances[distances.length - 1].weight = 1;
+          console.log('Distances calculated', distances);
+
+          cy.style().selector('edge#' + id.name).style('curve-style', 'segments').update();
+          cy.style().selector('edge#' + id.name).style('segment-distances', distances.map(function (distance) {
+            return distance.distance;
+          }).join(' '));
+          cy.style().selector('edge#' + id.name).style('segment-weights', distances.map(function (distance) {
+            return distance.weight;
+          }).join(' '));
+        })();
+      } else {
+        console.log('Less than 3 points', e);
+        cy.style().selector('edge#' + id.name).style('curve-style', 'bezier').update();
+      }
+    }
+  }
+
+  var gNodeIds = g.nodes();
+  for (var _i4 = 0; _i4 < gNodeIds.length; _i4++) {
+    var _id = gNodeIds[_i4];
+    var n = g.node(_id);
+
+    cy.getElementById(_id).scratch().dagre = n;
   }
 
   var dagreBB = void 0;
