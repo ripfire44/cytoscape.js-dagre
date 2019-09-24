@@ -92,6 +92,80 @@ DagreLayout.prototype.run = function(){
 
   dagre.layout( g );
 
+  let gEdgeIds = g.edges();
+  for( let i = 0; i < gEdgeIds.length; i++ ){
+    let id = gEdgeIds[i];
+    let e = g.edge( id );
+
+    if (e && e.points) {
+      if (e.points.length > 3) {
+        console.log('More than 3 points', e.points);
+        let distances = [];
+
+        let pStart = e.points[0];
+        let pEnd = e.points[e.points.length - 1];
+
+        let slope = (pEnd.y - pStart.y) / (pEnd.x - pStart.x);
+        let yIntercept = pStart.y - slope * pStart.x;
+        let slopeOrthogonal = -1 * (1 / slope);
+
+        let getDistance = function(pSegment) {
+          let result = {
+            'distance': pSegment.x - pStart.x,
+            'weight': Math.abs(pSegment.y - pStart.y) / Math.abs(pEnd.y - pStart.y)
+          };
+
+          if (pEnd.x - pStart.x === 0) {
+            return result;
+          }
+
+          let y2 = pEnd.y;
+          let y1 = pStart.y;
+          let x2 = pEnd.x;
+          let x1 = pStart.x;
+          let y3 = pSegment.y;
+          let x3 = pSegment.x;
+          let k = ((y2-y1) * (x3-x1) - (x2-x1) * (y3-y1)) / (Math.pow((y2-y1), 2) + (Math.pow((x2-x1), 2)));
+          let x4 = x3 - k * (y2-y1);
+          let y4 = y3 + k * (x2-x1);
+
+          result.distance = (Math.sqrt(Math.pow((y4-y3), 2) + Math.pow((x4-x3), 2)));
+
+          let d = (pSegment.x - pStart.x) * (pEnd.y - pStart.y) - (pSegment.y - pStart.y) * (pEnd.x - pStart.x);
+          if(d > 0) {
+            result.distance = -result.distance;
+          }
+
+          let yInterceptOrthogonal = pSegment.y - (slopeOrthogonal * pSegment.x);
+          let distanceOrhthogonal = (slopeOrthogonal * pStart.x - pStart.y + yInterceptOrthogonal) / (Math.sqrt(Math.pow(slopeOrthogonal, 2) + 1));
+
+          result.weight = distanceOrhthogonal / Math.sqrt(Math.pow(pEnd.x - pStart.x, 2) + Math.pow(pEnd.y - pStart.y, 2));
+
+          if(result.weight < 0) {
+            result.weight = -result.weight;
+          }
+
+          return result;
+        };
+
+        for ( let j = 1; j < e.points.length - 1; j++) {
+          distances.push(getDistance(e.points[j]));
+        }
+
+        //distances[distances.length - 1].distance = 0;
+        //distances[distances.length - 1].weight = 1;
+        console.log('Distances calculated', distances);
+
+        cy.style().selector('edge#' + id.name).style('curve-style', 'segments').update();
+        cy.style().selector('edge#' + id.name).style('segment-distances', distances.map(distance => distance.distance).join(' '));
+        cy.style().selector('edge#' + id.name).style('segment-weights', distances.map(distance => distance.weight).join(' '));
+      } else {
+        console.log('Less than 3 points', e);
+        cy.style().selector('edge#' + id.name).style('curve-style', 'bezier').update();
+      }
+    }
+  }
+
   let gNodeIds = g.nodes();
   for( let i = 0; i < gNodeIds.length; i++ ){
     let id = gNodeIds[i];
